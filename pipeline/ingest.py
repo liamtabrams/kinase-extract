@@ -43,12 +43,24 @@ RAW = DATA / "raw"
 PROCESSED = DATA / "processed"
 
 
+class PaperNotAvailable(Exception):
+    """Raised when a PMC id has no downloadable open-access full text.
+
+    Europe PMC's /fullTextXML endpoint only serves papers in the PMC
+    open-access subset. Paywalled or abstract-only records return a 404 or a
+    non-article response, which is a normal, expected outcome -- not a bug --
+    so we surface it as a clear message instead of a raw traceback.
+    """
+
+
 def fetch_fulltext_xml(pmcid: str, timeout: int = 30) -> str:
     """Return the JATS full-text XML for a PMC id, using a disk cache.
 
     Cache-first: if data/raw/<pmcid>.xml already exists, we return it and never
     touch the network. Otherwise we download it, save it, and return it. This
     is why the bundled sample paper works with no internet access.
+
+    Raises PaperNotAvailable if the paper isn't in the open-access subset.
     """
     RAW.mkdir(parents=True, exist_ok=True)
     cache = RAW / f"{pmcid}.xml"
@@ -56,11 +68,32 @@ def fetch_fulltext_xml(pmcid: str, timeout: int = 30) -> str:
         return cache.read_text(encoding="utf-8")
 
     url = EUROPE_PMC_XML.format(pmcid=pmcid)
-    resp = requests.get(
-        url, timeout=timeout, headers={"User-Agent": "kinase-extract/0.1"}
-    )
-    resp.raise_for_status()
+    try:
+        resp = requests.get(
+            url, timeout=timeout, headers={"User-Agent": "kinase-extract/0.1"}
+        )
+        resp.raise_for_status()
+    except requests.HTTPError as exc:
+        # A 404 here almost always means "not open-access", not a broken URL.
+        status = exc.response.status_code if exc.response is not None else None
+        if status == 404:
+            raise PaperNotAvailable(
+                f"{pmcid} has no open-access full text on Europe PMC "
+                "(only papers in the PMC open-access subset can be downloaded). "
+                "Try an OA id such as PMC6582307."
+            ) from exc
+        raise  # other HTTP errors (500, timeouts wrapped elsewhere) bubble up
+
     xml = resp.text
+    # Some non-OA records return HTTP 200 with a short error document rather
+    # than an article. Detect that before caching so we never cache junk.
+    if "<article-title" not in xml and "<body" not in xml:
+        raise PaperNotAvailable(
+            f"{pmcid} returned a response with no article body -- it is "
+            "probably not in the PMC open-access subset. Try an OA id such as "
+            "PMC6582307."
+        )
+
     cache.write_text(xml, encoding="utf-8")
     return xml
 
@@ -141,7 +174,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    result = ingest_paper(args.pmcid)
+    try:
+        result = ingest_paper(args.pmcid)
+    except PaperNotAvailable as exc:
+        print(f"Could not ingest {args.pmcid}: {exc}", file=sys.stderr)
+        return 1
 
     print(f"Ingested {result['pmcid']}: {result['title'][:80]!r}")
     print(f"  paragraphs: {result['n_paragraphs']}")
