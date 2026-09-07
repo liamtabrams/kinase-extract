@@ -1,0 +1,60 @@
+{
+  "triples": [
+    {
+      "kinase": "BRAF",
+      "substrate": "MEK1",
+      "phosphosite": null,
+      "evidence": "In cells carrying the BRAF V600E mutation, BRAF phosphorylates MEK1 and MEK2, switching on the downstream kinases.",
+      "confidence": "high"
+    },
+    {
+      "kinase": "BRAF",
+      "substrate": "MEK2",
+      "phosphosite": null,
+      "evidence": "In cells carrying the BRAF V600E mutation, BRAF phosphorylates MEK1 and MEK2, switching on the downstream kinases.",
+      "confidence": "high"
+    },
+    {
+      "kinase": "MEK1",
+      "substrate": "ERK1",
+      "phosphosite": null,
+      "evidence": "Activated MEK1 in turn phosphorylates ERK1 and ERK2 on their activation-loop threonine and tyrosine residues.",
+      "confidence": "high"
+    },
+    {
+      "kinase": "MEK1",
+      "substrate": "ERK2",
+      "phosphosite": null,
+      "evidence": "Activated MEK1 in turn phosphorylates ERK1 and ERK2 on their activation-loop threonine and tyrosine residues.",
+      "confidence": "high"
+    },
+    {
+      "kinase": "ERK2",
+      "substrate": "ELK1",
+      "phosphosite": "Ser383",
+      "evidence": "Once active, ERK2 phosphorylates the transcription factor ELK1 at Ser383, promoting expression of proliferative genes.",
+      "confidence": "high"
+    },
+    {
+      "kinase": "ERK1",
+      "substrate": "RSK2",
+      "phosphosite": null,
+      "evidence": "ERK1 also phosphorylates the ribosomal S6 kinase RSK2, linking the cascade to translational control.",
+      "confidence": "high"
+    },
+    {
+      "kinase": "MEK1",
+      "substrate": "BRAF",
+      "phosphosite": "Ser365",
+      "evidence": "Unexpectedly, in our reconstitution assays MEK1 phosphorylated BRAF at Ser365, hinting at a previously unappreciated feedback arm.",
+      "confidence": "medium"
+    },
+    {
+      "kinase": "BRAF",
+      "substrate": "KSR1",
+      "phosphosite": "Thr260",
+      "evidence": "We further observed that BRAF directly phosphorylates the scaffold protein KSR1 at Thr260 in colorectal cells, an interaction that has not been catalogued in existing kinase-substrate databases.",
+      "confidence": "high"
+    }
+  ]
+}

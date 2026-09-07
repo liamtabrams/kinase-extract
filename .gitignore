@@ -13,3 +13,5 @@ data/raw/*
 !data/raw/PMC_SAMPLE.xml
 data/processed/*
 !data/processed/.gitkeep
+data/extractions/*
+!data/extractions/.gitkeep
