@@ -35,6 +35,16 @@ import sys
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+# Load a local .env file (if present) so ANTHROPIC_API_KEY is available to the
+# Anthropic SDK. python-dotenv is optional -- if it isn't installed, env vars
+# set directly in your shell still work.
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
+
 from pipeline.schema import Extraction
 
 DATA = Path(__file__).resolve().parent.parent / "data"

@@ -5,6 +5,7 @@ requests>=2.31
 # M2 -- Reader agent: define typed schemas + call Claude for structured output
 pydantic>=2.6
 anthropic>=0.40
+python-dotenv>=1.0   # loads your ANTHROPIC_API_KEY from a local .env file
 
 # Added in later milestones:
 #   M3 Validator agent  -> omnipath, pandas
