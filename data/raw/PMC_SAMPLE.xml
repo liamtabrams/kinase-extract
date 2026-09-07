@@ -1,0 +1,39 @@
+<!--
+  SYNTHETIC DEMO PAPER (not a real publication).
+
+  This file is hand-written JATS XML that stands in for a real PMC open-access
+  article so the pipeline can run offline (this sandbox cannot reach PMC).
+  The sentences are written to give the Reader + Validator agents a deliberate
+  mix of cases:
+    * relationships that exist in curated databases (BRAF->MEK, MEK->ERK, ...)
+      -> should validate as "confirmed"
+    * a reversed / unusual relationship (MEK1 -> BRAF)
+      -> likely "contradicted" or "unconfirmed"
+    * a plausible-but-uncurated relationship (BRAF -> KSR1)
+      -> likely "novel/unconfirmed"
+  Gene aliases (MEK1/MAP2K1, ERK1/MAPK3) are used on purpose to exercise
+  entity normalization in the Validator (M3).
+
+  To use a REAL paper: run `python -m pipeline.ingest PMC6582307` on a machine
+  with internet access; it will fetch and cache the real article next to this.
+-->
+<article xmlns:xlink="http://www.w3.org/1999/xlink">
+  <front>
+    <article-meta>
+      <title-group>
+        <article-title>RAF-MEK-ERK signaling in BRAF-mutant colorectal cancer (demo)</article-title>
+      </title-group>
+    </article-meta>
+  </front>
+  <body>
+    <sec>
+      <title>Introduction</title>
+      <p>The RAF-MEK-ERK cascade is a central driver of BRAF-mutant colorectal cancer. In cells carrying the BRAF <italic>V600E</italic> mutation, BRAF phosphorylates MEK1 and MEK2, switching on the downstream kinases. Activated MEK1 in turn phosphorylates ERK1 and ERK2 on their activation-loop threonine and tyrosine residues.</p>
+    </sec>
+    <sec>
+      <title>Results</title>
+      <p>Once active, ERK2 phosphorylates the transcription factor ELK1 at Ser383, promoting expression of proliferative genes. ERK1 also phosphorylates the ribosomal S6 kinase RSK2, linking the cascade to translational control. Unexpectedly, in our reconstitution assays MEK1 phosphorylated BRAF at Ser365, hinting at a previously unappreciated feedback arm.</p>
+      <p>We further observed that BRAF directly phosphorylates the scaffold protein KSR1 at Thr260 in colorectal cells, an interaction that has not been catalogued in existing kinase-substrate databases. Pharmacological inhibition of MEK sharply reduced phosphorylation of every downstream substrate we measured.</p>
+    </sec>
+  </body>
+</article>

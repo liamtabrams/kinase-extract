@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Secrets -- the Anthropic API key lives in an env var, never in git (M2+)
+.env
+
+# Fetched papers and generated outputs are regenerable; don't commit them.
+# Exception: the offline demo sample, which we DO want in the repo.
+data/raw/*
+!data/raw/PMC_SAMPLE.xml
+data/processed/*
+!data/processed/.gitkeep

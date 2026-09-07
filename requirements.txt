@@ -1,0 +1,8 @@
+# Dependencies are added milestone by milestone so you can see why each one
+# is here. M1 (ingestion) only needs an HTTP client.
+requests>=2.31
+
+# Added in later milestones:
+#   M2 Reader agent     -> anthropic, pydantic
+#   M3 Validator agent  -> omnipath, pandas
+#   M5 Review UI        -> streamlit
