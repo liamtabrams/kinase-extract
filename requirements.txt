@@ -2,7 +2,10 @@
 # is here. M1 (ingestion) only needs an HTTP client.
 requests>=2.31
 
+# M2 -- Reader agent: define typed schemas + call Claude for structured output
+pydantic>=2.6
+anthropic>=0.40
+
 # Added in later milestones:
-#   M2 Reader agent     -> anthropic, pydantic
 #   M3 Validator agent  -> omnipath, pandas
 #   M5 Review UI        -> streamlit
