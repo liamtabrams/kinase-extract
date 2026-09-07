@@ -8,28 +8,30 @@ response and hands us real Python objects -- not a string we have to hope is
 valid JSON.
 
 Two models:
-  * KinaseTriple -- one extracted relationship.
+  * KinaseTriple -- one extracted relationship (kinase -> substrate [at site]).
   * Extraction   -- a container holding a list of triples. We need a container
                     because `output_format` requires a single object/model at
                     the top level, not a bare list.
 
->>> YOUR TASK: fill in the four TODO field definitions below. <<<
+The `description=` text on each field is NOT just documentation -- it is sent to
+Claude as part of the JSON Schema, so each description is really an instruction
+that steers extraction. Read them as prompts.
 
-Remember the two ideas from the walkthrough:
-  1. The `description=` text is sent to Claude -- write it as an instruction.
-  2. Field types + which fields are required = policy the schema enforces.
+Test it with no API calls:
 
-When you're done, test it with no API calls:
+    # The exact JSON Schema Claude will see:
+    python -c "from pipeline.schema import Extraction; import json; \
+        print(json.dumps(Extraction.model_json_schema(), indent=2))"
 
-    python -c "from pipeline.schema import KinaseTriple, Extraction; \
-        import json; print(json.dumps(Extraction.model_json_schema(), indent=2))"
-
-That prints the exact JSON Schema Claude will see. Then try building one by
-hand to watch validation work:
-
+    # Validation succeeds on a well-formed triple:
     python -c "from pipeline.schema import KinaseTriple; \
         print(KinaseTriple(kinase='BRAF', substrate='MEK1', phosphosite=None, \
         evidence='BRAF phosphorylates MEK1.', confidence='high'))"
+
+    # Validation FAILS on a bad confidence value (this is the point!):
+    python -c "from pipeline.schema import KinaseTriple; \
+        KinaseTriple(kinase='BRAF', substrate='MEK1', phosphosite=None, \
+        evidence='x', confidence='very high')"
 """
 
 from __future__ import annotations
@@ -42,40 +44,58 @@ from pydantic import BaseModel, Field
 class KinaseTriple(BaseModel):
     """One kinase -> substrate phosphorylation relationship pulled from text."""
 
-    # TODO 1 -- kinase: str (required)
-    #   The enzyme doing the phosphorylating, exactly as named in the text
-    #   (e.g. "BRAF", "MEK1"). Write a `description=` that tells Claude to use
-    #   the name as written, not to normalize it.
-    #
-    # TODO 2 -- substrate: str (required)
-    #   The protein being phosphorylated (e.g. "MEK1", "ERK2"), as named.
-    #
-    # TODO 3 -- phosphosite: Optional[str] (default None)
-    #   The specific residue + position, e.g. "Ser383" or "Thr202". Many
-    #   sentences don't give one -- so this is OPTIONAL. Making it optional is a
-    #   policy choice: "a triple is still valid without a named site." Your
-    #   description should tell Claude to return null when no site is stated.
-    #
-    # TODO 4 -- evidence: str (required)
-    #   The exact sentence the relationship came from. Required on purpose --
-    #   every claim must cite its evidence. Tell Claude to quote verbatim.
-    #
-    # TODO 5 -- confidence: Literal["high", "medium", "low"] (required)
-    #   How explicitly the text asserts THIS specific relationship. Using a
-    #   Literal (an enum) instead of a 0-1 float is deliberate: LLMs calibrate
-    #   coarse buckets far better than fake-precise numbers, and the enum
-    #   constrains the model to three valid answers. Describe what each level
-    #   means (high = directly stated; low = hedged/inferred).
+    kinase: str = Field(
+        description=(
+            "The enzyme (kinase) protein that adds the phosphate group, written "
+            "exactly as it appears in the text (e.g. 'BRAF', 'MEK1', 'ERK2'). "
+            "Do not rename, expand, or normalize it -- copy the name as written."
+        )
+    )
 
-    # ... your five fields go here ...
+    substrate: str = Field(
+        description=(
+            "The protein that receives the phosphate group (the substrate), "
+            "written exactly as it appears in the text (e.g. 'MEK1', 'ERK2', "
+            "'ELK1'). Do not rename or normalize it -- copy the name as written."
+        )
+    )
+
+    phosphosite: Optional[str] = Field(
+        default=None,
+        description=(
+            "The specific residue and position that is phosphorylated, if the "
+            "text states one (e.g. 'Ser218', 'Thr202', 'Tyr204'). Many sentences "
+            "name no site; return null in that case rather than guessing."
+        ),
+    )
+
+    evidence: str = Field(
+        description=(
+            "The single sentence from the text that states this relationship, "
+            "quoted verbatim. This is the evidence a human reviewer will read, "
+            "so it must come straight from the source -- do not paraphrase."
+        )
+    )
+
+    confidence: Literal["high", "medium", "low"] = Field(
+        description=(
+            "How explicitly the text asserts THIS specific kinase->substrate "
+            "phosphorylation. 'high' = directly and unambiguously stated (e.g. "
+            "'X phosphorylates Y'); 'medium' = stated but less direct, or the "
+            "roles are slightly implied; 'low' = hedged, indirect, or inferred "
+            "rather than clearly claimed."
+        )
+    )
 
 
 class Extraction(BaseModel):
     """Everything the Reader Agent found in one chunk of text."""
 
-    # TODO 6 -- triples: list[KinaseTriple]
-    #   The list of all relationships found. Give it a `description` and a
-    #   default of an empty list, so "found nothing" is a valid, clean result
-    #   rather than an error.
-
-    # ... your one field goes here ...
+    triples: list[KinaseTriple] = Field(
+        default_factory=list,
+        description=(
+            "Every kinase-substrate-phosphosite relationship found in the text. "
+            "Return an empty list if the text states none -- do not invent "
+            "relationships that are not supported by a sentence."
+        ),
+    )
