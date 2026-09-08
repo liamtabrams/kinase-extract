@@ -138,3 +138,33 @@ class ValidationReport(BaseModel):
     pmcid: str
     reference: str  # which database backed the check, e.g. "omnipath" or "fixture"
     results: list[ValidatedTriple] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# M5 -- human-in-the-loop review types.
+#
+# A reviewer looks at a flagged triple and does one of three things. We capture
+# the decision AND (if edited) the corrected triple, because these decisions
+# become the GOLD LABELS that M6 evaluates against and any future fine-tune
+# would train on. The reviewed batch is the whole point of the HITL step:
+# it turns a person's judgment into reusable, structured data.
+# ---------------------------------------------------------------------------
+
+ReviewDecision = Literal["approved", "rejected", "edited"]
+
+
+class ReviewedTriple(BaseModel):
+    """A reviewer's verdict on one validated triple."""
+
+    validated: ValidatedTriple            # what the machine produced (kept intact)
+    decision: ReviewDecision
+    corrected: Optional[KinaseTriple] = None  # the fixed triple, only if edited
+    note: str = ""                        # optional free-text reviewer comment
+
+
+class ReviewBatch(BaseModel):
+    """All of one reviewer's decisions for one paper."""
+
+    pmcid: str
+    reviewer: str = ""
+    decisions: list[ReviewedTriple] = Field(default_factory=list)

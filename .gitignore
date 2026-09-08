@@ -17,3 +17,5 @@ data/extractions/*
 !data/extractions/.gitkeep
 data/validations/*
 !data/validations/.gitkeep
+data/reviews/*
+!data/reviews/.gitkeep

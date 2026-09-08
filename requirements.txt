@@ -11,5 +11,5 @@ python-dotenv>=1.0   # loads your ANTHROPIC_API_KEY from a local .env file
 omnipath>=1.0
 pandas>=2.0
 
-# Added in later milestones:
-#   M5 Review UI        -> streamlit
+# M5 -- Human-in-the-loop review UI
+streamlit>=1.30
