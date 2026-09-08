@@ -200,8 +200,9 @@ def main(argv: list[str] | None = None) -> int:
         t = r.triple
         flag = {"confirmed": "OK ", "contradicted": "XX ", "novel": "?? "}[r.status]
         print(f"  {flag}[{r.status:<12}] {t.kinase}->{t.substrate} "
-              f"({r.kinase_symbol}->{r.substrate_symbol})")
-        print(f"       {r.explanation}")
+              f"({r.kinase_symbol}->{r.substrate_symbol})  [extractor: {t.confidence}]")
+        print(f"       verdict : {r.explanation}")
+        print(f"       evidence: {t.evidence}")
     print(f"\nSaved to data/validations/{args.pmcid}.json")
     return 0
 
