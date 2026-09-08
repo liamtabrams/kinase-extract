@@ -99,3 +99,42 @@ class Extraction(BaseModel):
             "relationships that are not supported by a sentence."
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# M3 -- validation types.
+#
+# The Validator (M3b) does NOT change the extracted triple; it *annotates* it
+# with a verdict from the reference database. So ValidatedTriple keeps the
+# original triple intact and adds the validation fields alongside it. Keeping
+# the source triple untouched means we never lose what the paper actually said.
+# ---------------------------------------------------------------------------
+
+# The three verdicts. Note these are validation types, not Pydantic BaseModels.
+ValidationStatus = Literal["confirmed", "contradicted", "novel"]
+
+
+class ValidatedTriple(BaseModel):
+    """One extracted triple plus the verdict from checking it against OmniPath."""
+
+    triple: KinaseTriple
+
+    # The normalized identifiers we actually looked up (from M3a):
+    kinase_symbol: str
+    substrate_symbol: str
+    normalized_site: Optional[str] = None
+
+    status: ValidationStatus
+    # True/False if a site was given and we could check it against the DB;
+    # None if there was no site, or the pair wasn't found at all.
+    site_in_db: Optional[bool] = None
+
+    explanation: str  # plain-language reason for the verdict
+
+
+class ValidationReport(BaseModel):
+    """The Validator's output for one paper: every triple, labeled."""
+
+    pmcid: str
+    reference: str  # which database backed the check, e.g. "omnipath" or "fixture"
+    results: list[ValidatedTriple] = Field(default_factory=list)

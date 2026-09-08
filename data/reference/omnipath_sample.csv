@@ -1,0 +1,13 @@
+enzyme_genesymbol,substrate_genesymbol,residue_type,residue_offset,modification,sources
+BRAF,MAP2K1,S,218,phosphorylation,PhosphoSite
+BRAF,MAP2K1,S,222,phosphorylation,PhosphoSite
+BRAF,MAP2K2,S,222,phosphorylation,PhosphoSite
+BRAF,MAP2K2,S,226,phosphorylation,PhosphoSite
+MAP2K1,MAPK1,T,185,phosphorylation,PhosphoSite
+MAP2K1,MAPK1,Y,187,phosphorylation,PhosphoSite
+MAP2K1,MAPK3,T,202,phosphorylation,PhosphoSite
+MAP2K1,MAPK3,Y,204,phosphorylation,PhosphoSite
+MAPK1,ELK1,S,383,phosphorylation,PhosphoSite
+MAPK3,ELK1,S,389,phosphorylation,PhosphoSite
+MAPK1,RPS6KA3,T,577,phosphorylation,PhosphoSite
+MAPK3,RPS6KA3,T,577,phosphorylation,PhosphoSite

@@ -7,6 +7,9 @@ pydantic>=2.6
 anthropic>=0.40
 python-dotenv>=1.0   # loads your ANTHROPIC_API_KEY from a local .env file
 
+# M3 -- Validator agent: cross-check triples against curated data
+omnipath>=1.0
+pandas>=2.0
+
 # Added in later milestones:
-#   M3 Validator agent  -> omnipath, pandas
 #   M5 Review UI        -> streamlit
