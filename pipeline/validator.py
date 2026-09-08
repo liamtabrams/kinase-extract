@@ -71,9 +71,10 @@ def load_reference(source: str) -> pd.DataFrame:
                 "--reference fixture to run offline."
             ) from exc
         # Enzsub = enzyme-substrate (PTM) relationships. Downloads on first call,
-        # then caches locally. If your omnipath version names this differently,
-        # adjust this one import.
-        return Enzsub.get()
+        # then caches locally. genesymbols=True is REQUIRED: without it OmniPath
+        # returns only UniProt accession columns (enzyme/substrate), not the
+        # *_genesymbol columns we normalize to.
+        return Enzsub.get(genesymbols=True)
     if source == "fixture":
         path = REFERENCE / "omnipath_sample.csv"
         return pd.read_csv(path)
@@ -86,13 +87,24 @@ def build_index(df: pd.DataFrame) -> dict[tuple[str, str], set[str]]:
     We keep only phosphorylation rows and record each site as 'S218'-style
     strings, so lookups are O(1) instead of scanning the whole table per triple.
     """
+    required = (COL_ENZYME, COL_SUBSTRATE, COL_RES_TYPE, COL_RES_OFFSET, COL_MOD)
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise SystemExit(
+            f"Reference table is missing expected columns {missing}.\n"
+            f"Columns present: {list(df.columns)}\n"
+            "For live OmniPath, make sure gene symbols are requested "
+            "(Enzsub.get(genesymbols=True))."
+        )
+
     phospho = df[df[COL_MOD] == "phosphorylation"]
     index: dict[tuple[str, str], set[str]] = {}
-    for row in phospho.itertuples(index=False):
-        key = (getattr(row, COL_ENZYME), getattr(row, COL_SUBSTRATE))
-        sites = index.setdefault(key, set())
-        res_type = getattr(row, COL_RES_TYPE)
-        res_offset = getattr(row, COL_RES_OFFSET)
+    # Iterate column-by-column (robust: avoids itertuples' attribute-name quirks).
+    for enzyme, substrate, res_type, res_offset in zip(
+        phospho[COL_ENZYME], phospho[COL_SUBSTRATE],
+        phospho[COL_RES_TYPE], phospho[COL_RES_OFFSET],
+    ):
+        sites = index.setdefault((enzyme, substrate), set())
         if pd.notna(res_type) and pd.notna(res_offset):
             sites.add(f"{res_type}{int(res_offset)}")
     return index
