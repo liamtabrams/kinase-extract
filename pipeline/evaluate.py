@@ -45,7 +45,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from pipeline.review import FLAGGED_STATUSES, load_batch, load_report
+from pipeline.review import FLAGGED_STATUSES, VALIDATIONS, load_batch, load_report
 
 DATA = Path(__file__).resolve().parent.parent / "data"
 EVAL = DATA / "eval"
@@ -78,9 +78,11 @@ def compute_metrics(pmcid: str) -> dict:
         "reference": report.reference,
         "total_extracted": total,
         "status_counts": dict(by_status),
+        "confirmed": confirmed,               # raw counts, kept so we can pool
+        "site_matches": site_matches,         # across papers in --all mode
+        "site_checked": len(sited),
         "db_agreement_rate_pct": _pct(confirmed, total),
         "site_accuracy_pct": _pct(site_matches, len(sited)),
-        "site_checked": len(sited),
     }
 
     # 3 & 4. Human-label metrics -- only if a review batch exists.
@@ -150,17 +152,106 @@ def render(metrics: dict) -> str:
     return "\n".join(lines)
 
 
+def discover_pmcids() -> list[str]:
+    """Every paper that has a validation report on disk."""
+    return sorted(p.stem for p in VALIDATIONS.glob("*.json"))
+
+
+def aggregate(pmcids: list[str]) -> dict:
+    """Pool per-paper metrics into one report.
+
+    We SUM the raw counts across papers and recompute the rates from the pooled
+    totals -- NOT average the per-paper percentages. Averaging percentages would
+    weight a 1-triple paper the same as a 50-triple paper; pooling counts gives
+    every triple equal weight, which is what you want for a corpus-level rate.
+    """
+    per = [compute_metrics(p) for p in pmcids]
+
+    total = sum(m["total_extracted"] for m in per)
+    confirmed = sum(m["confirmed"] for m in per)
+    site_checked = sum(m["site_checked"] for m in per)
+    site_matches = sum(m["site_matches"] for m in per)
+    status = Counter()
+    for m in per:
+        status.update(m["status_counts"])
+
+    agg: dict = {
+        "papers": pmcids,
+        "n_papers": len(pmcids),
+        "total_extracted": total,
+        "status_counts": dict(status),
+        "db_agreement_rate_pct": _pct(confirmed, total),
+        "site_accuracy_pct": _pct(site_matches, site_checked),
+        "site_checked": site_checked,
+    }
+
+    reviewed = [m["review"] for m in per if m["review"] is not None]
+    if reviewed:
+        flagged = sum(r["flagged"] for r in reviewed)
+        decided = sum(r["reviewed"] for r in reviewed)
+        approved = sum(r["approved"] for r in reviewed)
+        rejected = sum(r["rejected"] for r in reviewed)
+        edited = sum(r["edited"] for r in reviewed)
+        agg["review"] = {
+            "flagged": flagged, "reviewed": decided,
+            "approved": approved, "rejected": rejected, "edited": edited,
+            "flag_precision_pct": _pct(rejected + edited, decided),
+            "pipeline_yield_pct": _pct(confirmed + approved + edited, total),
+        }
+    else:
+        agg["review"] = None
+    return agg
+
+
+def render_aggregate(agg: dict) -> str:
+    lines = [f"Aggregate evaluation over {agg['n_papers']} paper(s): "
+             f"{', '.join(agg['papers'])}",
+             "=" * 60,
+             f"Triples extracted        : {agg['total_extracted']}"]
+    sc = agg["status_counts"]
+    lines.append(f"  confirmed / contradicted / novel : "
+                 f"{sc.get('confirmed', 0)} / {sc.get('contradicted', 0)} / {sc.get('novel', 0)}")
+    lines.append("")
+    lines.append(f"DB agreement rate        : {agg['db_agreement_rate_pct']}%")
+    sa = agg["site_accuracy_pct"]
+    lines.append(f"Site accuracy            : "
+                 + (f"{sa}%  (pooled over {agg['site_checked']} sited confirmed triples)"
+                    if sa is not None else "n/a"))
+    r = agg["review"]
+    lines.append("")
+    if r is None:
+        lines.append("Human review             : none saved yet.")
+    else:
+        lines.append(f"Human review (flagged)   : {r['reviewed']}/{r['flagged']} reviewed  "
+                     f"-> {r['approved']} approved, {r['rejected']} rejected, {r['edited']} edited")
+        lines.append(f"Validator flag precision : {r['flag_precision_pct']}%")
+        lines.append(f"Pipeline yield           : {r['pipeline_yield_pct']}%")
+    return "\n".join(lines)
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Evaluate the pipeline for one paper.")
+    parser = argparse.ArgumentParser(description="Evaluate the pipeline.")
     parser.add_argument("pmcid", nargs="?", default="PMC_SAMPLE")
+    parser.add_argument("--all", action="store_true",
+                        help="Pool metrics across every validated paper.")
     args = parser.parse_args(argv)
+    EVAL.mkdir(parents=True, exist_ok=True)
+
+    if args.all:
+        pmcids = discover_pmcids()
+        if not pmcids:
+            print("No validated papers found. Run the validator on some papers first.",
+                  file=sys.stderr)
+            return 1
+        agg = aggregate(pmcids)
+        print(render_aggregate(agg))
+        (EVAL / "_aggregate.json").write_text(json.dumps(agg, indent=2), encoding="utf-8")
+        print("\nSaved metrics to data/eval/_aggregate.json")
+        return 0
 
     metrics = compute_metrics(args.pmcid)
     print(render(metrics))
-
-    EVAL.mkdir(parents=True, exist_ok=True)
-    out_path = EVAL / f"{args.pmcid}.json"
-    out_path.write_text(json.dumps(metrics, indent=2), encoding="utf-8")
+    (EVAL / f"{args.pmcid}.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     print(f"\nSaved metrics to data/eval/{args.pmcid}.json")
     return 0
 
