@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import streamlit as st
 
+from pipeline.curation import add_reviewed, count as curated_count
 from pipeline.review import flagged, load_batch, load_report, save_batch
 from pipeline.schema import KinaseTriple, ReviewBatch, ReviewedTriple
 
@@ -113,4 +114,8 @@ if st.button("💾 Save decisions", type="primary"):
 
     batch = ReviewBatch(pmcid=pmcid, reviewer=reviewer, decisions=decisions)
     path = save_batch(batch)
-    st.success(f"Saved {len(decisions)} decision(s) to {path}")
+    # Complete the loop: push approved/edited findings into the curated atlas.
+    added = add_reviewed(batch)
+    st.success(f"Saved {len(decisions)} decision(s) to {path}. "
+               f"Added {added} new finding(s) to the curated atlas "
+               f"(now {curated_count()} total).")

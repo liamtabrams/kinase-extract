@@ -21,3 +21,6 @@ data/reviews/*
 !data/reviews/.gitkeep
 data/eval/*
 !data/eval/.gitkeep
+
+# Curated atlas (local SQLite DB, regenerable from reviews)
+data/curated.db*
