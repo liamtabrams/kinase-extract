@@ -38,7 +38,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from pipeline.normalize import normalize_site, to_gene_symbol
+from itertools import product
+
+from pipeline.normalize import normalize_sites, to_gene_symbols
 from pipeline.schema import (
     Extraction,
     ValidatedTriple,
@@ -111,48 +113,58 @@ def build_index(df: pd.DataFrame) -> dict[tuple[str, str], set[str]]:
 
 
 def validate_triple(triple, index: dict[tuple[str, str], set[str]]) -> ValidatedTriple:
-    """Assign a verdict to one triple by looking it up in the index."""
-    kinase = to_gene_symbol(triple.kinase)
-    substrate = to_gene_symbol(triple.substrate)
-    site = normalize_site(triple.phosphosite)
+    """Assign a verdict to one triple by looking it up in the index.
 
-    forward = index.get((kinase, substrate))
-    reverse = index.get((substrate, kinase))
+    Family-aware: a name like "MEK" expands to {MAP2K1, MAP2K2}, and we try every
+    kinase x substrate pairing. The first forward pairing found in OmniPath wins
+    (confirmed); failing that, a reverse pairing means contradicted; else novel.
+    """
+    kinases = to_gene_symbols(triple.kinase)
+    substrates = to_gene_symbols(triple.substrate)
+    sites = normalize_sites(triple.phosphosite)
+
+    forward = next(((k, s) for k, s in product(kinases, substrates) if (k, s) in index), None)
+    reverse = next(((k, s) for k, s in product(kinases, substrates) if (s, k) in index), None)
 
     status: ValidationStatus
     site_in_db = None
+    site_str = "/".join(sites) if sites else None
+
     if forward is not None:
         status = "confirmed"
-        if site is not None:
-            site_in_db = site in forward
+        k_used, s_used = forward
+        if sites:
+            db_sites = index[forward]
+            site_in_db = any(s in db_sites for s in sites)
             site_note = (
-                f" The exact site {site} is recorded."
+                f" Site(s) {site_str} match the record."
                 if site_in_db
-                else f" But site {site} is not among the recorded sites."
+                else f" But site(s) {site_str} are not among the recorded sites."
             )
         else:
             site_note = ""
-        explanation = (
-            f"OmniPath records {kinase} -> {substrate} phosphorylation.{site_note}"
-        )
+        explanation = f"OmniPath records {k_used} -> {s_used} phosphorylation.{site_note}"
     elif reverse is not None:
         status = "contradicted"
+        k_used, s_used = "/".join(kinases), "/".join(substrates)
+        rk, rs = reverse
         explanation = (
-            f"OmniPath records the reverse direction ({substrate} -> {kinase}), "
-            f"not {kinase} -> {substrate} as stated."
+            f"OmniPath records the reverse direction ({rs} -> {rk}), "
+            f"not {k_used} -> {s_used} as stated."
         )
     else:
         status = "novel"
+        k_used, s_used = "/".join(kinases), "/".join(substrates)
         explanation = (
-            f"OmniPath has no record of {kinase} <-> {substrate} phosphorylation "
+            f"OmniPath has no record of {k_used} <-> {s_used} phosphorylation "
             "in either direction."
         )
 
     return ValidatedTriple(
         triple=triple,
-        kinase_symbol=kinase,
-        substrate_symbol=substrate,
-        normalized_site=site,
+        kinase_symbol=k_used,
+        substrate_symbol=s_used,
+        normalized_site=site_str,
         status=status,
         site_in_db=site_in_db,
         explanation=explanation,
