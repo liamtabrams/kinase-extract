@@ -19,3 +19,5 @@ data/validations/*
 !data/validations/.gitkeep
 data/reviews/*
 !data/reviews/.gitkeep
+data/eval/*
+!data/eval/.gitkeep
