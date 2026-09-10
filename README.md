@@ -64,3 +64,15 @@ Output lands in `data/processed/<pmcid>.json` as:
   real PMCID when you run locally.
 - **Sentences are kept** because each extracted triple later carries the
   *evidence sentence* a human reviewer reads to judge the claim.
+
+## Run the whole batch
+
+`run_pipeline.sh` chains ingest → reader → validator for a list of papers, then
+runs the aggregate evaluation. The interactive review UI is separate
+(`streamlit run app.py`).
+
+```bash
+./run_pipeline.sh                          # default papers, Claude + live OmniPath
+./run_pipeline.sh PMC6582307 PMC7694028    # your own PMCIDs
+BACKEND=mock REFERENCE=fixture ./run_pipeline.sh PMC_SAMPLE   # offline, no cost
+```
