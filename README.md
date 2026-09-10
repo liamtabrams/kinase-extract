@@ -1,78 +1,172 @@
 # kinase-extract
 
-A scaled-down, learning-focused **multi-agent LLM pipeline** that reads
+A scaled-down, **learning-focused multi-agent LLM pipeline** that reads
 biomedical papers, extracts **kinase → substrate → phosphosite** relationships,
-cross-validates them against a curated database, and surfaces uncertain ones
-for human review.
+cross-validates them against a real curated database, surfaces the uncertain
+ones for human review, and evaluates itself.
 
-Inspired by the PhosphoAtlas++ project (UCSF Radiation Oncology). Built to
-demonstrate the core concepts of applied AI engineering — structured output
-extraction, tool-grounded validation, human-in-the-loop review, and evaluation
-design — on a focused example: **BRAF / MEK / ERK signaling in colorectal
-cancer**.
+Inspired by the PhosphoAtlas++ project (UCSF Radiation Oncology) and focused on
+one biology: **BRAF / MEK / ERK signaling in colorectal cancer**. It is built to
+demonstrate the core ideas of applied AI engineering end-to-end — structured
+output extraction, tool-grounded validation, human-in-the-loop review, a
+curated data store, and honest evaluation — not to be a production system.
 
-## Roadmap
+> **License:** MIT · **Status:** complete learning project (no cloud deployment)
 
-| # | Milestone | Concept |
-|---|-----------|---------|
-| **M1** | Paper ingestion (PMC → clean sentences) | Real-world text ingestion, caching |
-| M2 | Reader Agent (LLM → typed triples) | Structured output extraction |
-| M3 | Validator Agent (triples vs OmniPath) | Tool grounding + entity normalization |
-| M4 | Orchestration (Reader → Validator → batch) | Multi-agent handoff |
-| M5 | Human-in-the-loop review (Streamlit) | HITL design |
-| M6 | Evaluation (precision/recall, coverage) | Eval design |
-| +1 | Packaging & deployment (Docker → HF Spaces) | Reproducibility & shipping |
+## Pipeline
 
-## Setup
+```mermaid
+flowchart LR
+    A[PMC paper] -->|ingest| B[clean sentences]
+    B -->|Reader Agent + Claude| C[typed triples]
+    C -->|Validator vs OmniPath| D{confirmed / contradicted / novel}
+    D -->|flagged| E[Human review UI]
+    E -->|approved / edited| F[(Curated atlas · SQLite)]
+    D --> G[Evaluation metrics]
+    E --> G
+```
+
+Two runtime shapes, kept deliberately separate: an **offline batch pipeline**
+(ingest → reader → validator → evaluate) and an **interactive review app**
+(Streamlit). All reasoning/data logic lives in the `pipeline/` package; `app.py`
+is a thin UI layer.
+
+## Concepts demonstrated
+
+| Component | Files | Concept |
+|---|---|---|
+| Ingestion | `pipeline/ingest.py` | Real-world text ingestion; **cache-first** design; handling external-API failure modes |
+| Reader Agent | `pipeline/reader.py`, `pipeline/schema.py` | **Structured output extraction** (Pydantic schema as a contract); **provider abstraction** (Claude / local Ollama / mock backends) |
+| Validator Agent | `pipeline/validator.py`, `pipeline/normalize.py` | **Tool grounding** against a curated DB; **entity normalization** (gene-symbol + family resolution) |
+| Review UI | `app.py`, `pipeline/review.py` | **Human-in-the-loop**; capturing human decisions as gold labels |
+| Curated atlas | `pipeline/curation.py` | **Two-database architecture**: read-only reference vs. writable curation store |
+| Evaluation | `pipeline/evaluate.py` | **Eval design**: what a metric does and does *not* measure; closing the loop |
+
+## Quickstart
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## M1 — Paper ingestion
-
-Turns a PubMed Central open-access paper into clean, sentence-split JSON that
-later milestones consume.
+**30 seconds, no API key, no network** — runs the whole batch pipeline on a
+bundled synthetic paper using the offline mock backend and fixture database:
 
 ```bash
-# Run on the bundled offline sample (no internet needed):
-python -m pipeline.ingest
-
-# Run on a real paper (needs internet access to Europe PMC):
-python -m pipeline.ingest PMC6582307
+BACKEND=mock REFERENCE=fixture ./run_pipeline.sh PMC_SAMPLE
+python -m pipeline.evaluate PMC_SAMPLE
 ```
 
-Output lands in `data/processed/<pmcid>.json` as:
-
-```json
-{
-  "pmcid": "PMC_SAMPLE",
-  "title": "...",
-  "n_paragraphs": 3,
-  "sentences": ["The RAF-MEK-ERK cascade ...", "..."]
-}
-```
-
-### Design notes
-
-- **Source:** Europe PMC REST API (`/fullTextXML`) — mirrors the PMC
-  open-access subset, no API key required.
-- **Cache-first:** fetched papers are cached to `data/raw/<pmcid>.xml`; the
-  network is only used on a cache miss. This makes runs reproducible and lets
-  the pipeline work offline. The bundled `PMC_SAMPLE.xml` is a synthetic demo
-  article (hand-written JATS) so everything runs without internet — swap in a
-  real PMCID when you run locally.
-- **Sentences are kept** because each extracted triple later carries the
-  *evidence sentence* a human reviewer reads to judge the claim.
-
-## Run the whole batch
-
-`run_pipeline.sh` chains ingest → reader → validator for a list of papers, then
-runs the aggregate evaluation. The interactive review UI is separate
-(`streamlit run app.py`).
+**Real run** — needs an [Anthropic API key](https://console.anthropic.com/) and
+internet access (for PubMed Central + OmniPath):
 
 ```bash
-./run_pipeline.sh                          # default papers, Claude + live OmniPath
-./run_pipeline.sh PMC6582307 PMC7694028    # your own PMCIDs
-BACKEND=mock REFERENCE=fixture ./run_pipeline.sh PMC_SAMPLE   # offline, no cost
+cp .env.example .env            # then paste your key into .env
+./run_pipeline.sh PMC6582307 PMC7694028 PMC10779188 PMC9456575
+streamlit run app.py            # review flagged triples, Save
+python -m pipeline.evaluate --all
 ```
+
+Re-run only the validator over already-fetched papers (no re-extraction, **no
+API cost**):
+
+```bash
+./revalidate.sh
+```
+
+## The components
+
+- **`ingest.py`** — fetches a PMC open-access paper's full text from Europe PMC
+  (cache-first to `data/raw/`), parses the JATS XML, and splits it into evidence
+  sentences. Ships a synthetic sample so everything runs offline.
+- **`schema.py`** — the Pydantic models. `KinaseTriple` / `Extraction` are the
+  extraction contract; `ValidatedTriple`, `ReviewedTriple`, etc. carry results
+  downstream.
+- **`reader.py`** — the Reader Agent. One `ReaderBackend` interface, three
+  implementations: `claude` (hosted, `messages.parse` enforces the schema),
+  `ollama` (local open weights), `mock` (canned, offline).
+- **`normalize.py`** — entity normalization: protein names → HGNC gene symbols,
+  family names (MEK/ERK/RAF) → their gene-symbol sets, and written sites
+  (`Ser218 and Ser222`) → database form (`[S218, S222]`).
+- **`validator.py`** — the Validator Agent: looks each triple up in OmniPath's
+  enzyme–substrate data (or an offline CSV fixture) and labels it
+  **confirmed / contradicted / novel**, with an optional site-level match.
+- **`review.py` + `app.py`** — the human-in-the-loop layer: a Streamlit app that
+  shows each flagged triple with its evidence and records approve/reject/edit.
+- **`curation.py`** — the curated atlas: a local SQLite DB that accumulates the
+  human-endorsed findings with provenance.
+- **`evaluate.py`** — computes DB agreement, site accuracy, review outcomes,
+  flag precision, and pipeline yield — per paper or pooled (`--all`).
+
+## Example output
+
+Validator (one triple):
+
+```
+  OK [confirmed   ] MEK->ERK1 (MAP2K1->MAPK3)  [extractor: high]
+       verdict : OmniPath records MAP2K1 -> MAPK3 phosphorylation. Site(s) T202/Y204 match the record.
+       evidence: RAF proteins further phosphorylate and activate MEK 1/2 on serines 218 and 222, which in turn lead to phosphorylation and activation of ERK1 on threonine 202 and tyrosine 204 ...
+```
+
+Aggregate evaluation over 5 papers:
+
+```
+Triples extracted        : 28
+  confirmed / contradicted / novel : 22 / 2 / 4
+DB agreement rate        : 78.6%
+Site accuracy            : 100.0%  (pooled over 4 sited confirmed triples)
+```
+
+## Evaluation case study: the eval that fixed the pipeline
+
+The evaluation didn't just score the system — it pointed at the next fix. An
+early run over real papers showed a **32% DB agreement rate**. Inspecting the
+`novel` bucket revealed the cause: most were *not* new biology but
+**normalization failures** — family names like "MEK", "RAF proteins", and
+"MEK 1/2" that the thin alias map couldn't resolve to gene symbols.
+
+Making normalization **family-aware** (expanding `MEK → {MAP2K1, MAP2K2}`, etc.)
+and parsing multi-site strings, then **re-validating the cached extractions**
+(no re-extraction cost), moved the numbers:
+
+| | Before | After |
+|---|---|---|
+| Confirmed triples | 9 | **22** |
+| Novel triples | 17 | **4** |
+| DB agreement rate | 32.1% | **78.6%** |
+
+*Measure → find the bottleneck → fix one thing → re-measure* — the eval loop,
+closed.
+
+## Design decisions & their honest limits
+
+- **`novel` and `contradicted` are heuristics, not verdicts.** Curated databases
+  store *positives* only, so absence ≠ falsehood. "Novel" means "absent from
+  OmniPath"; "contradicted" means "only the reverse direction is curated". Both
+  are *flags for a human*, not automatic rejections.
+- **The evidence sentence is kept end-to-end** so a reviewer can tell a faithful
+  extraction that disagrees with the DB from an actual extraction error.
+- **Normalization is a curated map, not a full resolver.** Transparent and
+  testable, but production would normalize against HGNC/UniProt.
+- **The eval is small and single-annotator.** Recall is unmeasured (it needs an
+  exhaustively labeled gold set); the site check is lenient (`any` site matches).
+
+## Future work
+
+- Deployment (Docker → Hugging Face Spaces) for a live demo.
+- Fine-tuning a small open model on the accumulated human-reviewed labels.
+- Richer normalization via a real HGNC/UniProt resolver; family-aware site logic.
+- Multi-annotator review and inter-annotator agreement.
+
+## Repository layout
+
+```
+pipeline/         offline pipeline package (ingest, reader, validator, review, curation, evaluate)
+app.py            Streamlit human-in-the-loop review UI
+run_pipeline.sh   batch driver: ingest -> reader -> validator -> aggregate eval
+revalidate.sh     re-validate cached extractions only (no API cost)
+data/             cached papers, extractions, validations, reviews, the curated atlas, and fixtures
+```
+
+## License
+
+MIT — see [LICENSE](LICENSE).

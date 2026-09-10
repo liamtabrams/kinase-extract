@@ -24,3 +24,6 @@ data/eval/*
 
 # Curated atlas (local SQLite DB, regenerable from reviews)
 data/curated.db*
+
+# Personal interview-prep notes (kept out of the repo)
+CONCEPTS.md
