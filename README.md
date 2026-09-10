@@ -103,7 +103,7 @@ Validator (one triple):
 
 ```
   OK [confirmed   ] MEK->ERK1 (MAP2K1->MAPK3)  [extractor: high]
-       verdict : OmniPath records MAP2K1 -> MAPK3 phosphorylation. Site(s) T202/Y204 match the record.
+       verdict : OmniPath records MAP2K1 -> MAPK3 phosphorylation. All site(s) T202/Y204 match the record.
        evidence: RAF proteins further phosphorylate and activate MEK 1/2 on serines 218 and 222, which in turn lead to phosphorylation and activation of ERK1 on threonine 202 and tyrosine 204 ...
 ```
 
@@ -148,7 +148,9 @@ closed.
 - **Normalization is a curated map, not a full resolver.** Transparent and
   testable, but production would normalize against HGNC/UniProt.
 - **The eval is small and single-annotator.** Recall is unmeasured (it needs an
-  exhaustively labeled gold set); the site check is lenient (`any` site matches).
+  exhaustively labeled gold set). The site check is **strict** — every named site
+  must be recorded to count as a match — so site accuracy is a conservative
+  residue-level precision spot-check.
 
 ## Future work
 

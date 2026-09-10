@@ -135,11 +135,16 @@ def validate_triple(triple, index: dict[tuple[str, str], set[str]]) -> Validated
         k_used, s_used = forward
         if sites:
             db_sites = index[forward]
-            site_in_db = any(s in db_sites for s in sites)
+            # STRICT site match: EVERY extracted site must be recorded, not just
+            # one. Stricter and more honest -- a triple that names Thr202/Tyr204
+            # only counts as correct if OmniPath records both. (Lenient `any`
+            # would over-credit partial matches.)
+            site_in_db = all(s in db_sites for s in sites)
+            missing = [s for s in sites if s not in db_sites]
             site_note = (
-                f" Site(s) {site_str} match the record."
+                f" All site(s) {site_str} match the record."
                 if site_in_db
-                else f" But site(s) {site_str} are not among the recorded sites."
+                else f" But site(s) {'/'.join(missing)} are not recorded."
             )
         else:
             site_note = ""
